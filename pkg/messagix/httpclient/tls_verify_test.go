@@ -23,7 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.mau.fi/util/exhttp"
+
+	"go.mau.fi/mautrix-meta/pkg/messagix/cookies"
+	"go.mau.fi/mautrix-meta/pkg/messagix/types"
 )
 
 // emSign Root TLS CA - G3 and EM OV TLS CA - G3C, one of the intermediates it
@@ -150,8 +154,7 @@ func assertBlocked(t *testing.T, c *HTTPClient, reached *atomic.Bool) {
 // to addr, never through a proxy from the environment.
 func clientTo(t *testing.T, addr string, tlsConfig *tls.Config) *HTTPClient {
 	t.Helper()
-	c := &HTTPClient{}
-	c.SetConfig(exhttp.ClientSettings{
+	c := NewHTTPClient(testClient{}, nil, exhttp.ClientSettings{
 		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, network, addr)
 		},
@@ -160,6 +163,18 @@ func clientTo(t *testing.T, addr string, tlsConfig *tls.Config) *HTTPClient {
 	})
 	t.Cleanup(c.websocketClient.CloseIdleConnections)
 	return c
+}
+
+// testClient is the least a messagix client provides for NewHTTPClient.
+type testClient struct{}
+
+func (testClient) GetPlatform() types.Platform  { return types.Messenger }
+func (testClient) GetCookies() *cookies.Cookies { return nil }
+func (testClient) GetEndpoint(string) string    { return "" }
+func (testClient) IsAuthenticated() bool        { return false }
+func (testClient) GetLogger() *zerolog.Logger {
+	logger := zerolog.Nop()
+	return &logger
 }
 
 // serveCompromisedChain starts a TLS server that sends a leaf issued by the
